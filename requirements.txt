@@ -44,3 +44,4 @@ sqlalchemy
 # ==========================================
 pytest
 chronos-forecasting>=2.0
+tabpfn==9.2.0
