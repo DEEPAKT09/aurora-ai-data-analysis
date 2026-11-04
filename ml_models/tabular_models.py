@@ -300,8 +300,8 @@ def train_and_compare_models(
 
     # Retain supported data types.
     supported_columns = X.select_dtypes(
-        include=["number", "object", "category", "bool"]
-    ).columns
+    include=["number", "object", "str", "category", "bool"]
+).columns.tolist()
 
     unsupported_columns = [
         str(column)

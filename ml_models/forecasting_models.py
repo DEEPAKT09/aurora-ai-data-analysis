@@ -1,31 +1,20 @@
 
-from functools import lru_cache
+import warnings
 
 import numpy as np
 import pandas as pd
-from chronos import Chronos2Pipeline
+
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-
-
-@lru_cache(maxsize=1)
-def load_chronos_model():
-    """
-    Load Chronos-2 once and reuse it for subsequent forecasts.
-    CPU mode is used because this project currently has no CUDA.
-    """
-    return Chronos2Pipeline.from_pretrained(
-        "amazon/chronos-2",
-        device_map="cpu"
-    )
 
 
 def prepare_time_series(
     df: pd.DataFrame,
     date_column: str,
     target_column: str,
-    frequency: str | None = None
+    frequency: str | None = None,
 ):
-    """Validate and prepare a univariate time-series dataset."""
+    """Validate, aggregate, and regularize a univariate time series."""
 
     if date_column not in df.columns:
         raise ValueError(f"Date column '{date_column}' was not found.")
@@ -37,118 +26,192 @@ def prepare_time_series(
 
     data[date_column] = pd.to_datetime(
         data[date_column],
-        errors="coerce"
+        errors="coerce",
     )
 
     data[target_column] = pd.to_numeric(
         data[target_column],
-        errors="coerce"
+        errors="coerce",
     )
 
-    data = data.dropna().sort_values(date_column).reset_index(drop=True)
+    data = data.dropna(subset=[date_column, target_column])
 
-    if len(data) < 20:
+    data = data.replace([np.inf, -np.inf], np.nan)
+
+    data = data.dropna(subset=[target_column])
+
+    if data.empty:
         raise ValueError(
-            "Chronos-2 requires more historical observations. "
-            "Please provide at least 20 valid rows."
+            "No valid date and numeric target observations were found."
         )
 
-    if data[date_column].duplicated().any():
+    # Aggregate repeated timestamps rather than rejecting the dataset.
+    data = (
+        data.groupby(date_column, as_index=False)[target_column]
+        .mean()
+        .sort_values(date_column)
+        .reset_index(drop=True)
+    )
+
+    if len(data) < 8:
         raise ValueError(
-            "Duplicate timestamps found. Aggregate them before forecasting."
+            "Holt-Winters forecasting requires at least 8 valid "
+            "historical observations."
         )
 
-    if not np.isfinite(data[target_column]).all():
-        raise ValueError("Target column contains infinite values.")
+    # Create the time series before attempting frequency inference.
+    indexed = data.set_index(date_column)[target_column]
+
+    # Automatically infer frequency when one is not provided.
+    if frequency is None:
+
+        inferred_frequency = pd.infer_freq(indexed.index)
+
+        frequency = (
+            inferred_frequency.freqstr
+            if hasattr(inferred_frequency, "freqstr")
+            else inferred_frequency
+        )
 
     if frequency is None:
-        frequency = pd.infer_freq(data[date_column])
 
-    if frequency is None:
+        # Infer a practical frequency from the median time difference.
+        differences = indexed.index.to_series().diff().dropna()
+
+        if differences.empty:
+            raise ValueError("Could not infer the time frequency.")
+
+        median_days = differences.median().total_seconds() / 86400
+
+        if median_days <= 1.5:
+            frequency = "D"
+
+        elif median_days <= 8:
+            frequency = "W"
+
+        elif median_days <= 32:
+            frequency = "MS"
+
+        elif median_days <= 100:
+            frequency = "QS"
+
+        else:
+            frequency = "YS"
+
+    try:
+
+        indexed = indexed.resample(frequency).mean()
+
+    except Exception as error:
+
         raise ValueError(
-            "Could not identify a regular time frequency. "
-            "Please check for missing dates or specify a frequency."
+            f"Unable to create a regular time series using "
+            f"frequency '{frequency}': {error}"
+        ) from error
+
+    # Interpolate gaps so the model receives a continuous series.
+    indexed = indexed.interpolate(method="time").ffill().bfill()
+
+    if indexed.isna().any() or not np.isfinite(indexed.to_numpy()).all():
+        raise ValueError(
+            "The target series contains invalid numeric values."
         )
 
-    return data, frequency
-
-
-def _run_chronos_prediction(
-    model,
-    data,
-    date_column,
-    target_column,
-    prediction_length,
-    frequency
-):
-    """Run Chronos-2 for one time series."""
-
-    context = pd.DataFrame({
-        "item_id": "series_1",
-        "timestamp": data[date_column],
-        "target": data[target_column]
-    })
-
-    forecasts = model.predict_df(
-        context,
-        prediction_length=prediction_length,
-        quantile_levels=[0.1, 0.5, 0.9],
-        id_column="item_id",
-        timestamp_column="timestamp",
-        target="target",
-        freq=frequency
-    )
-
-    # Rename the output columns into consistent names.
-    quantile_columns = {}
-
-    for column in forecasts.columns:
-        column_name = str(column)
-
-        if column_name in ("0.1", "0.1"):
-            quantile_columns[column] = "lower_bound"
-        elif column_name in ("0.5", "0.5"):
-            quantile_columns[column] = "forecast"
-        elif column_name in ("0.9", "0.9"):
-            quantile_columns[column] = "upper_bound"
-
-    forecasts = forecasts.rename(columns=quantile_columns)
-
-    required_columns = [
-        "timestamp",
-        "predictions",
-        "lower_bound",
-        "forecast",
-        "upper_bound"
-    ]
-
-    missing_columns = [
-        column for column in required_columns
-        if column not in forecasts.columns
-    ]
-
-    if missing_columns:
+    if len(indexed) < 8:
         raise ValueError(
-            f"Unexpected Chronos output. Missing columns: {missing_columns}. "
-            f"Received: {forecasts.columns.tolist()}"
+            "The regularized time series has fewer than 8 observations."
         )
 
-    forecasts = forecasts.rename(
-        columns={
-            "timestamp": "date",
-            "predictions": "mean_forecast"
-        }
+    return indexed.astype(float), frequency
+
+
+def _seasonal_period_for_frequency(frequency: str, row_count: int):
+    """Choose a conservative seasonal period when enough history exists."""
+
+    freq = frequency.upper()
+
+    if freq.startswith(("M",)):
+        candidate = 12
+    elif freq.startswith(("Q",)):
+        candidate = 4
+    elif freq.startswith(("W",)):
+        candidate = 52
+    elif freq.startswith(("D",)):
+        candidate = 7
+    else:
+        candidate = None
+
+    # Require at least two complete seasonal cycles.
+    if candidate and row_count >= candidate * 2:
+        return candidate
+
+    return None
+
+
+def _fit_holt_winters(series: pd.Series, frequency: str):
+    """Fit a lightweight Holt-Winters model with safe fallbacks."""
+
+    seasonal_periods = _seasonal_period_for_frequency(
+        frequency,
+        len(series),
     )
 
-    return forecasts[
+    configurations = []
+
+    if seasonal_periods:
+        configurations.append(
+            {
+                "trend": "add",
+                "damped_trend": True,
+                "seasonal": "add",
+                "seasonal_periods": seasonal_periods,
+            }
+        )
+
+    configurations.extend(
         [
-            "date",
-            "mean_forecast",
-            "lower_bound",
-            "forecast",
-            "upper_bound"
+            {
+                "trend": "add",
+                "damped_trend": True,
+                "seasonal": None,
+                "seasonal_periods": None,
+            },
+            {
+                "trend": None,
+                "damped_trend": False,
+                "seasonal": None,
+                "seasonal_periods": None,
+            },
         ]
-    ]
+    )
+
+    errors = []
+
+    for config in configurations:
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+
+                model = ExponentialSmoothing(
+                    series,
+                    trend=config["trend"],
+                    damped_trend=config["damped_trend"],
+                    seasonal=config["seasonal"],
+                    seasonal_periods=config["seasonal_periods"],
+                    initialization_method="estimated",
+                )
+
+                fitted = model.fit(optimized=True)
+
+            return fitted, config
+
+        except Exception as error:
+            errors.append(str(error))
+
+    raise RuntimeError(
+        "Holt-Winters could not fit this time series. "
+        + " | ".join(errors[-2:])
+    )
 
 
 def forecast_time_series(
@@ -157,55 +220,56 @@ def forecast_time_series(
     target_column: str,
     prediction_length: int = 6,
     frequency: str | None = None,
-    evaluation_size: int = 6
+    evaluation_size: int | None = None,
 ):
     """
-    Generate future forecasts and evaluate the model using
-    a chronological holdout split.
+    Forecast future observations with Holt-Winters Exponential Smoothing.
+
+    The most recent observations are held out for chronological evaluation.
+    The final forecast is then fitted using all available observations.
     """
 
-    if prediction_length < 1:
-        raise ValueError("Prediction length must be at least 1.")
+    if prediction_length < 1 or prediction_length > 100:
+        raise ValueError("Prediction length must be between 1 and 100.")
 
-    data, frequency = prepare_time_series(
-        df,
-        date_column,
-        target_column,
-        frequency
+    series, frequency = prepare_time_series(
+        df=df,
+        date_column=date_column,
+        target_column=target_column,
+        frequency=frequency,
     )
+
+    if evaluation_size is None:
+        evaluation_size = min(
+            max(1, int(round(len(series) * 0.2))),
+            12,
+            len(series) - 5,
+        )
 
     if evaluation_size < 0:
         raise ValueError("Evaluation size cannot be negative.")
 
-    if evaluation_size >= len(data) - 12:
-        raise ValueError(
-            "Evaluation size is too large. Keep at least 12 "
-            "observations for training."
-        )
-
-    model = load_chronos_model()
-
     evaluation = None
 
-    # Evaluate using the most recent historical observations.
     if evaluation_size > 0:
-        training_data = data.iloc[:-evaluation_size].copy()
-        actual_values = data.iloc[-evaluation_size:][
-            target_column
-        ].to_numpy()
+        if evaluation_size >= len(series) - 4:
+            raise ValueError(
+                "Not enough historical observations remain for evaluation "
+                "and model training."
+            )
 
-        evaluation_forecasts = _run_chronos_prediction(
-            model,
-            training_data,
-            date_column,
-            target_column,
-            evaluation_size,
-            frequency
+        train_series = series.iloc[:-evaluation_size]
+        actual_values = series.iloc[-evaluation_size:].to_numpy()
+
+        evaluation_model, evaluation_config = _fit_holt_winters(
+            train_series,
+            frequency,
         )
 
-        predicted_values = evaluation_forecasts[
-            "forecast"
-        ].to_numpy()
+        predicted_values = np.asarray(
+            evaluation_model.forecast(evaluation_size),
+            dtype=float,
+        )
 
         evaluation = {
             "mae": float(
@@ -216,27 +280,61 @@ def forecast_time_series(
                     mean_squared_error(actual_values, predicted_values)
                 )
             ),
-            "evaluation_rows": int(evaluation_size)
+            "evaluation_rows": int(evaluation_size),
         }
 
-    # Generate the actual future forecast using all available history.
-    future_forecasts = _run_chronos_prediction(
-        model,
-        data,
-        date_column,
-        target_column,
-        prediction_length,
-        frequency
+    final_model, final_config = _fit_holt_winters(
+        series,
+        frequency,
     )
 
+    forecast_values = np.asarray(
+        final_model.forecast(prediction_length),
+        dtype=float,
+    )
+
+    future_dates = pd.date_range(
+        start=series.index[-1],
+        periods=prediction_length + 1,
+        freq=frequency,
+    )[1:]
+
+    # Approximate prediction bounds using historical residual variation.
+    residuals = np.asarray(final_model.resid, dtype=float)
+    residuals = residuals[np.isfinite(residuals)]
+
+    residual_std = (
+        float(np.std(residuals, ddof=1))
+        if len(residuals) > 1
+        else 0.0
+    )
+
+    forecast_rows = []
+
+    for step, (forecast_date, forecast_value) in enumerate(
+        zip(future_dates, forecast_values),
+        start=1,
+    ):
+        interval = 1.96 * residual_std * np.sqrt(step)
+
+        forecast_rows.append(
+            {
+                "date": forecast_date,
+                "forecast": float(forecast_value),
+                "lower_bound": float(forecast_value - interval),
+                "upper_bound": float(forecast_value + interval),
+            }
+        )
+
     return {
-        "model": "Chronos-2",
+        "model": "Holt-Winters Exponential Smoothing",
         "task_type": "time_series_forecasting",
         "target_column": target_column,
         "date_column": date_column,
         "frequency": frequency,
-        "historical_rows": len(data),
-        "prediction_length": prediction_length,
+        "historical_rows": int(len(series)),
+        "prediction_length": int(prediction_length),
         "evaluation": evaluation,
-        "forecast": future_forecasts
+        "model_configuration": final_config,
+        "forecast": forecast_rows,
     }

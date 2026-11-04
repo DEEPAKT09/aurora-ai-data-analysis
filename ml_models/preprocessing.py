@@ -36,8 +36,8 @@ def prepare_features(X: pd.DataFrame):
     ).columns.tolist()
 
     categorical_columns = X.select_dtypes(
-        include=["object", "category", "bool"]
-    ).columns.tolist()
+    include=["object", "str", "category", "bool"]
+).columns.tolist()
 
     transformers = []
 

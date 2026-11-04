@@ -1,8 +1,8 @@
 import logging
 import streamlit as st
 import pandas as pd
+import numpy as np
 import uuid
-from ui.advanced_analytics_panel import render_advanced_analytics
 from ui.sidebar import render_sidebar
 from ui.chat_panel import (
     render_chat_panel,
@@ -10,19 +10,6 @@ from ui.chat_panel import (
     get_compiled_graph,
     render_prediction_results,
     initialize_chat_state,
-)
-from ui.history_panel import render_history_panel
-from ui.visualization_panel import render_visualization_panel
-from tools.data_loader import load_dataset
-from tools.profiling_tools import (
-    profile_dataset,
-    generate_data_quality_summary
-)
-from tools.statistics_tools import (
-    generate_descriptive_statistics,
-    generate_categorical_summary,
-    generate_correlation_matrix,
-    generate_column_summary,
 )
 logger = logging.getLogger(__name__)
 
@@ -75,6 +62,8 @@ def process_uploaded_dataset(uploaded_file):
     Load and profile a dataset only when the uploaded file changes.
     Handle invalid uploads without exposing internal exception details.
     """
+    from tools.data_loader import load_dataset
+    from tools.profiling_tools import profile_dataset
     if uploaded_file is None:
         had_dataset = (
             st.session_state.get("dataset_signature") is not None
@@ -234,6 +223,7 @@ def render_dashboard():
 
         with history_column:
             with st.container(border=True):
+                from ui.history_panel import render_history_panel
                 render_history_panel()
 
     elif selected_page == "Data Analysis":
@@ -269,7 +259,7 @@ def render_dashboard():
             "in your dataset."
         )
         st.divider()
-
+        from ui.visualization_panel import render_visualization_panel
         render_visualization_panel(df, profile)
 
         if df is not None:
@@ -318,7 +308,7 @@ def render_dashboard():
                 context_instruction=(
                     "Answer questions about predictive analytics, "
                     "regression, classification, model comparisons, "
-                    "evaluation metrics and Chronos-2 forecasts."
+                    "evaluation metrics and Holt-Winters forecasts."
                 ),
                 result_context=prediction_context,
             )
@@ -331,7 +321,7 @@ def render_dashboard():
             "outlier detection and time-series analysis."
         )
         st.divider()
-
+        from ui.advanced_analytics_panel import render_advanced_analytics
         render_advanced_analytics(df)
 
         if df is not None:
@@ -364,6 +354,7 @@ def render_dashboard():
 
 def render_dashboard_overview(uploaded_file, df, profile):
     """Display a compact, full-width Aurora dataset overview."""
+    from tools.profiling_tools import generate_data_quality_summary
 
     st.subheader("Dataset Overview")
 
@@ -565,10 +556,16 @@ def render_dashboard_overview(uploaded_file, df, profile):
             f"of {len(df):,} records."
         )
 
-
-
 def render_data_analysis(df, profile):
     """Display detailed dataset quality, statistics and column exploration."""
+
+    from tools.statistics_tools import (
+        generate_descriptive_statistics,
+        generate_categorical_summary,
+        generate_correlation_matrix,
+        generate_column_summary,
+    )
+
     st.header("Data Analysis")
 
     if df is None or profile is None:
@@ -578,6 +575,7 @@ def render_data_analysis(df, profile):
     st.success("Dataset successfully loaded and profiled.")
 
     st.subheader("Column Information")
+
     st.dataframe(
         pd.DataFrame(profile["column_details"]),
         width="stretch",
@@ -586,94 +584,258 @@ def render_data_analysis(df, profile):
 
     st.divider()
     st.subheader("Data Quality Analysis")
+
     quality_left, quality_right = st.columns(2)
 
     with quality_left:
+
         st.markdown("**Missing values by column**")
+
         missing_frame = pd.DataFrame({
             "Column": list(profile.get("missing_by_column", {}).keys()),
             "Missing Values": list(profile.get("missing_by_column", {}).values()),
         })
-        missing_frame = missing_frame[missing_frame["Missing Values"] > 0]
+
+        missing_frame = missing_frame[
+            missing_frame["Missing Values"] > 0
+        ]
+
         if not missing_frame.empty:
+
             st.dataframe(
-                missing_frame.sort_values("Missing Values", ascending=False),
+                missing_frame.sort_values(
+                    "Missing Values",
+                    ascending=False
+                ),
                 width="stretch",
                 hide_index=True,
             )
-            st.bar_chart(missing_frame.set_index("Column"))
+
+            st.bar_chart(
+                missing_frame.set_index("Column")
+            )
+
         else:
             st.success("No missing values found in any column.")
 
     with quality_right:
+
         st.markdown("**Columns requiring review**")
+
         review_rows = []
+
         for label, columns in (
             ("Constant", profile.get("constant_columns", [])),
             ("High cardinality", profile.get("high_cardinality_columns", [])),
             ("Potential identifier", profile.get("potential_identifier_columns", [])),
         ):
-            review_rows.extend({"Issue": label, "Column": column} for column in columns)
+
+            review_rows.extend(
+                {"Issue": label, "Column": column}
+                for column in columns
+            )
+
         if review_rows:
-            st.dataframe(pd.DataFrame(review_rows), width="stretch", hide_index=True)
+
+            st.dataframe(
+                pd.DataFrame(review_rows),
+                width="stretch",
+                hide_index=True
+            )
+
         else:
-            st.success("No constant, high-cardinality or potential identifier columns flagged.")
+            st.success(
+                "No constant, high-cardinality or potential identifier columns flagged."
+            )
 
     st.divider()
     st.subheader("Numerical Descriptive Statistics")
+
     numerical_stats = generate_descriptive_statistics(df)
+
     if not numerical_stats.empty:
-        st.dataframe(numerical_stats, width="stretch")
+
+        st.dataframe(
+            numerical_stats,
+            width="stretch"
+        )
+
     else:
         st.info("No numerical columns were detected.")
 
     st.divider()
     st.subheader("Categorical Summary")
+
     categorical_stats = generate_categorical_summary(df)
+
     if not categorical_stats.empty:
-        st.dataframe(categorical_stats, width="stretch", hide_index=True)
+
+        st.dataframe(
+            categorical_stats,
+            width="stretch",
+            hide_index=True
+        )
+
     else:
         st.info("No categorical columns were detected.")
 
     st.divider()
     st.subheader("Correlation Analysis")
+
     correlation_matrix = generate_correlation_matrix(df)
+
     if not correlation_matrix.empty:
-        st.dataframe(correlation_matrix, width="stretch")
+
+        st.dataframe(
+            correlation_matrix,
+            width="stretch"
+        )
+
     else:
-        st.info("At least two numerical columns are required to calculate correlations.")
+        st.info(
+            "At least two numerical columns are required to calculate correlations."
+        )
+
+    # ==================================================
+    # INTERACTIVE COLUMN EXPLORER
+    # ==================================================
 
     st.divider()
     st.subheader("Interactive Column Explorer")
+
     selected_column = st.selectbox(
         "Select a column to inspect",
         options=df.columns.tolist(),
         key="profile_selected_column",
     )
-    summary = generate_column_summary(df, selected_column)
 
+    summary = generate_column_summary(
+        df,
+        selected_column
+    )
+
+    # Basic column information
     summary_cols = st.columns(4)
-    summary_cols[0].metric("Non-null", f'{summary["non_null"]:,}')
-    summary_cols[1].metric("Missing", f'{summary["missing"]:,}')
-    summary_cols[2].metric("Unique", f'{summary["unique"]:,}')
-    summary_cols[3].metric("Data type", summary["dtype"])
+
+    summary_cols[0].metric(
+        "Non-null",
+        f'{summary["non_null"]:,}'
+    )
+
+    summary_cols[1].metric(
+        "Missing",
+        f'{summary["missing"]:,}'
+    )
+
+    summary_cols[2].metric(
+        "Unique",
+        f'{summary["unique"]:,}'
+    )
+
+    summary_cols[3].metric(
+        "Data type",
+        summary["dtype"]
+    )
 
     selected_series = df[selected_column]
+
+    # ==================================================
+    # NUMERICAL COLUMN
+    # ==================================================
+
     if pd.api.types.is_numeric_dtype(selected_series):
-        numeric_values = pd.to_numeric(selected_series, errors="coerce").dropna()
+
+        numeric_values = pd.to_numeric(
+            selected_series,
+            errors="coerce"
+        ).dropna()
+
         if not numeric_values.empty:
+
             st.markdown("**Distribution**")
-            st.bar_chart(numeric_values.value_counts().sort_index().head(100))
-            st.json(summary.get("statistics", {}))
+
+            st.bar_chart(
+                numeric_values.value_counts().sort_index().head(100)
+            )
+
+            # Descriptive statistics
+            statistics = summary.get("statistics", {})
+
+            if statistics:
+
+                st.markdown("**Statistical Summary**")
+
+                statistic_labels = [
+                    ("Mean", "mean"),
+                    ("Median", "median"),
+                    ("Standard Deviation", "std"),
+                    ("Minimum", "min"),
+                    ("Maximum", "max"),
+                ]
+
+                available_statistics = [
+                    (label, key)
+                    for label, key in statistic_labels
+                    if statistics.get(key) is not None
+                ]
+
+                # Display statistics in a clean metric layout.
+                for start in range(0, len(available_statistics), 3):
+
+                    metric_group = available_statistics[
+                        start:start + 3
+                    ]
+
+                    metric_columns = st.columns(
+                        len(metric_group)
+                    )
+
+                    for column, (label, key) in zip(
+                        metric_columns,
+                        metric_group
+                    ):
+
+                        value = statistics[key]
+
+                        if isinstance(value, (int, float, np.number)):
+                            formatted_value = f"{value:,.2f}"
+                        else:
+                            formatted_value = str(value)
+
+                        column.metric(
+                            label,
+                            formatted_value
+                        )
+
         else:
-            st.info("No valid numerical values are available to plot.")
+            st.info(
+                "No valid numerical values are available to plot."
+            )
+
+    # ==================================================
+    # CATEGORICAL COLUMN
+    # ==================================================
+
     else:
-        top_values = selected_series.dropna().astype(str).value_counts().head(15)
+
+        top_values = (
+            selected_series.dropna()
+            .astype(str)
+            .value_counts()
+            .head(15)
+        )
+
         if not top_values.empty:
+
             st.markdown("**Most frequent values (top 15)**")
+
             st.bar_chart(top_values)
+
         else:
-            st.info("This column contains no non-missing values.")
+
+            st.info(
+                "This column contains no non-missing values."
+            )
 
 
 
@@ -811,7 +973,7 @@ def render_predictive_analytics(df):
         ),
         "Time-series Forecasting": (
             "Predict future numerical values using historical "
-            "time-based observations with Chronos-2."
+            "time-based observations with Holt-Winters Exponential Smoothing."
         ),
     }
 
@@ -868,7 +1030,6 @@ def render_predictive_analytics(df):
     frequency = None
 
     selected_models = []
-    use_tabpfn = False
 
     # --------------------------------------------------------
     # FORECASTING CONFIGURATION
@@ -892,7 +1053,7 @@ def render_predictive_analytics(df):
 
         with st.container(border=True):
 
-            st.markdown("**Chronos-2 forecast settings**")
+            st.markdown("**Holt-Winters forecast settings**")
 
             col1, col2 = st.columns(2)
 
@@ -941,9 +1102,9 @@ def render_predictive_analytics(df):
             frequency = frequency_mapping[frequency_option]
 
             st.caption(
-                "Chronos-2 uses historical observations to generate "
-                "future forecasts. Automatic frequency detection "
-                "requires a regular time series."
+                "Holt-Winters uses historical observations to model "
+    "level, trend and (when sufficient history is available) "
+    "seasonality. Automatic frequency detection is supported."
             )
 
         if target_column == date_column:
@@ -1008,21 +1169,6 @@ def render_predictive_analytics(df):
 
             st.markdown("**Additional prediction engine**")
 
-            use_tabpfn = st.checkbox(
-                "Include TabPFN 3.5",
-                value=False,
-                key=f"prediction_tabpfn_{task_type}",
-                help=(
-                    "TabPFN is an additional pretrained tabular "
-                    "model. Its execution may require additional "
-                    "memory and processing time."
-                ),
-            )
-
-            st.caption(
-                "TabPFN is optional. The selected scikit-learn "
-                "models can run independently."
-            )
 
     # --------------------------------------------------------
     # EXECUTION CONFIGURATION
@@ -1057,16 +1203,13 @@ def render_predictive_analytics(df):
         summary_col1.write(f"**Target:** {target_column}")
 
         if task_type == "Time-series Forecasting":
-            summary_col2.write("**Engine:** Chronos-2")
+            summary_col2.write("**Engine:** Holt-Winters")
             summary_col2.write(
                 f"**Forecast horizon:** {prediction_length} periods"
             )
         else:
             summary_col2.write(
                 f"**Scikit-learn models:** {len(selected_models)}"
-            )
-            summary_col2.write(
-                f"**TabPFN:** {'Enabled' if use_tabpfn else 'Disabled'}"
             )
 
         run_prediction = st.button(
@@ -1113,7 +1256,7 @@ def render_predictive_analytics(df):
 
         else:
             question = (
-                f"Perform time-series forecasting using Chronos-2. "
+                f"Perform time-series forecasting using Holt-Winters. "
                 f"The target column is '{target_column}'. "
                 f"The date column is '{date_column}'. "
                 f"Generate {prediction_length} future periods. "
@@ -1124,13 +1267,6 @@ def render_predictive_analytics(df):
             else:
                 question += "Automatically infer the time frequency. "
 
-        if task_type in ["Regression", "Classification"]:
-            question += (
-                "Also run TabPFN and compare its results."
-                if use_tabpfn
-                else "Do not run TabPFN."
-            )
-
         configured_task = {
             "Regression": "regression",
             "Classification": "classification",
@@ -1138,14 +1274,13 @@ def render_predictive_analytics(df):
         }[task_type]
 
         prediction_config = {
-            "task_type": configured_task,
-            "target_column": target_column,
-            "date_column": date_column,
-            "selected_models": selected_models,
-            "use_tabpfn": use_tabpfn,
-            "prediction_length": int(prediction_length),
-            "frequency": frequency,
-        }
+                "task_type": configured_task,
+                "target_column": target_column,
+                "date_column": date_column,
+                "selected_models": selected_models,
+                "prediction_length": int(prediction_length),
+                "frequency": frequency,
+            }
 
         try:
             graph = get_compiled_graph()

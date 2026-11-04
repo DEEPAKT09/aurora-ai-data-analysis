@@ -3,12 +3,6 @@ import logging
 
 from langgraph.runtime import Runtime
 
-from agents.visualization_agent import generate_visualization
-from agents.supervisor import route_user_question
-from agents.ai_analyst import ask_data_analyst
-from agents.prediction_agent import run_prediction_agent
-from agents.advanced_analytics_agent import run_advanced_analytics_agent
-
 from graph.state import GraphState, GraphContext
 
 
@@ -140,7 +134,7 @@ def supervisor_node(
 
     try:
         df = runtime.context["dataframe"]
-
+        from agents.supervisor import route_user_question
         decision = route_user_question(
             state["user_question"],
             df
@@ -218,7 +212,7 @@ def analysis_node(
 
     try:
         df = runtime.context["dataframe"]
-
+        from agents.ai_analyst import ask_data_analyst
         result = ask_data_analyst(
             state["user_question"],
             df
@@ -251,7 +245,7 @@ def visualization_node(
 
     try:
         df = runtime.context["dataframe"]
-
+        from agents.visualization_agent import generate_visualization
         result = generate_visualization(
             state["user_question"],
             df
@@ -298,7 +292,7 @@ def prediction_node(
 
     try:
         df = runtime.context["dataframe"]
-
+        from agents.prediction_agent import run_prediction_agent
         result = run_prediction_agent(
             user_question=state["user_question"],
             df=df,
@@ -364,7 +358,7 @@ def advanced_analysis_node(
 
     try:
         df = runtime.context["dataframe"]
-
+        from agents.advanced_analytics_agent import run_advanced_analytics_agent
         result = run_advanced_analytics_agent(
             state["user_question"],
             df,

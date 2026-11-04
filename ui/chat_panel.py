@@ -4,14 +4,6 @@ import uuid
 
 import streamlit as st
 
-import plotly.io as pio
-
-import pandas as pd
-
-import plotly.graph_objects as go
-
-from graph.workflow import build_graph
-
 @st.cache_resource
 
 def get_compiled_graph():
@@ -21,6 +13,7 @@ def get_compiled_graph():
     Build the graph once and reuse it across Streamlit reruns.
 
     """
+    from graph.workflow import build_graph
 
     return build_graph()
 
@@ -53,6 +46,8 @@ def render_prediction_results(prediction_result,  key_prefix="prediction"):
     cross-validation, feature diagnostics and forecasts.
 
     """
+    import pandas as pd
+    import plotly.graph_objects as go
 
     if not prediction_result:
 
@@ -656,384 +651,247 @@ def render_prediction_results(prediction_result,  key_prefix="prediction"):
 
                 )
 
+        # ==================================================
+    # Holt-Winters forecasting results
     # ==================================================
 
-    # TabPFN results
+    forecast_result = results.get("Holt-Winters")
 
-    # ==================================================
+    if forecast_result:
 
-    tabpfn_result = results.get("TabPFN")
+        st.markdown("#### Holt-Winters Forecast")
 
-    if tabpfn_result:
+        if forecast_result.get("error"):
 
-        st.markdown("#### TabPFN Results")
-
-        if tabpfn_result.get("error"):
-
-            st.warning(
-
-                f"TabPFN could not run: "
-
-                f"{tabpfn_result['error']}"
-
-            )
+            st.error(forecast_result["error"])
 
         else:
 
-            metrics = tabpfn_result.get("metrics", {})
-
-            if metrics:
-                metric_cols = st.columns(len(metrics))
-                for index, (metric_name, metric_value) in enumerate(metrics.items()):
-                    if isinstance(metric_value, (int, float)):
-                        metric_cols[index].metric(
-                            metric_name.replace("_", " ").upper(),
-                            f"{metric_value:.4f}"
-                        )
-
-            # TabPFN holdout predictions and residual diagnostics.
-            actual = tabpfn_result.get("actual_values", [])
-            predicted = tabpfn_result.get("predictions", [])
-            if actual and predicted and task_type == "regression":
-                plot_df = pd.DataFrame({
-                    "Actual": actual,
-                    "Predicted": predicted
-                })
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=plot_df["Actual"], y=plot_df["Predicted"],
-                    mode="markers", name="TabPFN predictions"
-                ))
-                low = min(float(plot_df["Actual"].min()), float(plot_df["Predicted"].min()))
-                high = max(float(plot_df["Actual"].max()), float(plot_df["Predicted"].max()))
-                fig.add_trace(go.Scatter(
-                    x=[low, high], y=[low, high],
-                    mode="lines", name="Ideal prediction"
-                ))
-                fig.update_layout(
-                    title="TabPFN: Actual vs Predicted",
-                    xaxis_title="Actual", yaxis_title="Predicted"
-                )
-                st.plotly_chart(
-                    fig, width="stretch",
-                    key=f"{key_prefix}_tabpfn_actual_predicted"
-                )
-
-                residuals = [
-                    float(a) - float(p) for a, p in zip(actual, predicted)
-                ]
-                residual_fig = go.Figure()
-                residual_fig.add_trace(go.Scatter(
-                    x=predicted, y=residuals, mode="markers",
-                    name="Residuals"
-                ))
-                residual_fig.add_hline(y=0, line_dash="dash")
-                residual_fig.update_layout(
-                    title="TabPFN: Residual Plot",
-                    xaxis_title="Predicted", yaxis_title="Residual"
-                )
-                st.plotly_chart(
-                    residual_fig, width="stretch",
-                    key=f"{key_prefix}_tabpfn_residuals"
-                )
-
-    # Unified holdout comparison: same random seed, target-cleaned rows,
-    # test size and stratification are used by both model runners.
-    if sklearn_result and tabpfn_result and not tabpfn_result.get("error"):
-        st.markdown("#### Unified Model Comparison")
-        unified_rows = []
-        for model_result in sklearn_result.get("models", []):
-            if model_result.get("error"):
-                continue
-            row = {"Model": model_result.get("model"), "Engine": "scikit-learn"}
-            row.update({
-                key: value for key, value in model_result.get("metrics", {}).items()
-                if key != "confusion_matrix"
-            })
-            cv = model_result.get("cross_validation", {})
-            row["CV Mean"] = cv.get("mean")
-            row["CV Std"] = cv.get("std")
-            unified_rows.append(row)
-
-        tabpfn_row = {"Model": "TabPFN", "Engine": "TabPFN"}
-        tabpfn_row.update(tabpfn_result.get("metrics", {}))
-        tab_cv = tabpfn_result.get("cross_validation", {})
-        tabpfn_row["CV Mean"] = tab_cv.get("mean")
-        tabpfn_row["CV Std"] = tab_cv.get("std")
-        unified_rows.append(tabpfn_row)
-
-        st.dataframe(
-            pd.DataFrame(unified_rows),
-            width="stretch",
-            hide_index=True
-        )
-
-        # Select the winner using the same holdout metric across engines.
-        candidates = []
-        for row in unified_rows:
-            if task_type == "regression" and isinstance(row.get("rmse"), (int, float)):
-                candidates.append((row["rmse"], row["Model"]))
-            elif task_type == "classification" and isinstance(row.get("f1_weighted"), (int, float)):
-                candidates.append((-row["f1_weighted"], row["Model"]))
-        if candidates:
-            winner = min(candidates)[1]
-            st.success(
-                f"Best overall model on the shared holdout set: {winner}"
-            )
-
-    # ==================================================
-
-    # Chronos-2 forecasting results
-
-    # ==================================================
-
-    chronos_result = results.get("Chronos-2")
-
-    if chronos_result:
-
-        st.markdown("#### Chronos-2 Forecast")
-
-        if chronos_result.get("error"):
-
-            st.error(chronos_result["error"])
-
-        else:
-
-            evaluation = chronos_result.get(
-
-                "evaluation", {}
-
-            )
+            evaluation = forecast_result.get("evaluation") or {}
 
             if evaluation:
 
                 col1, col2 = st.columns(2)
 
                 col1.metric(
-
                     "Evaluation MAE",
-
                     f'{evaluation.get("mae", 0):,.2f}'
-
                 )
 
                 col2.metric(
-
                     "Evaluation RMSE",
-
                     f'{evaluation.get("rmse", 0):,.2f}'
-
                 )
 
-            forecast_data = chronos_result.get(
+            config = forecast_result.get("model_configuration", {})
 
-                "forecast", []
-
+            st.caption(
+                "Model: Holt-Winters Exponential Smoothing | "
+                f"Trend: {config.get('trend') or 'None'} | "
+                f"Seasonality: {config.get('seasonal') or 'None'}"
             )
+
+            forecast_data = forecast_result.get("forecast", [])
 
             if forecast_data:
 
                 forecast_df = pd.DataFrame(forecast_data)
-                if forecast_df.empty:
-                    st.info(
-                        "Chronos-2 did not return usable forecast records."
-                    )
-                
+
                 st.dataframe(
-
                     forecast_df,
-
                     width="stretch",
-
                     hide_index=True
-
                 )
 
                 if (
-
                     "date" in forecast_df.columns
-
                     and "forecast" in forecast_df.columns
-
                 ):
 
                     figure = go.Figure()
 
                     figure.add_trace(
-
                         go.Scatter(
-
                             x=forecast_df["date"],
-
                             y=forecast_df["forecast"],
-
                             mode="lines+markers",
-
                             name="Forecast"
-
                         )
-
                     )
 
                     if (
-
                         "lower_bound" in forecast_df.columns
-
                         and "upper_bound" in forecast_df.columns
-
                     ):
 
                         figure.add_trace(
-
                             go.Scatter(
-
                                 x=forecast_df["date"],
-
                                 y=forecast_df["upper_bound"],
-
                                 mode="lines",
-
                                 line=dict(width=0),
-
                                 showlegend=False,
-
                                 hoverinfo="skip"
-
                             )
-
                         )
 
                         figure.add_trace(
-
                             go.Scatter(
-
                                 x=forecast_df["date"],
-
                                 y=forecast_df["lower_bound"],
-
                                 mode="lines",
-
                                 fill="tonexty",
-
-                                name="Prediction interval",
-
+                                name="Approximate prediction interval",
                                 line=dict(width=0)
-
                             )
-
                         )
 
                     figure.update_layout(
-
                         title="Future Forecast",
-
                         xaxis_title="Date",
-
                         yaxis_title=target or "Forecast",
-
                         template="plotly_white"
-
                     )
 
                     st.plotly_chart(
-
                         figure,
-
                         width="stretch",
-
-                        key=f"{key_prefix}_chronos_forecast"
-
+                        key=f"{key_prefix}_holt_winters_forecast"
                     )
 
-def render_advanced_results(advanced_result):
+            else:
+                st.info("No forecast records were returned.")
 
+
+def render_advanced_results(advanced_result):
     """Render evidence-backed advanced analytical insights."""
 
     if not advanced_result:
-
         return
 
     if not advanced_result.get("success"):
-
         st.warning(advanced_result.get("error", "Advanced analysis failed."))
-
         return
 
+    def format_label(value):
+        return str(value).replace("_", " ").replace("-", " ").title()
+
+    def render_structured_data(data):
+        """Render nested evidence as tables and readable key/value rows."""
+        if data is None:
+            st.caption("No data available.")
+            return
+
+        if isinstance(data, dict):
+            if not data:
+                st.caption("No supporting information available.")
+                return
+
+            scalar_items = {
+                key: value for key, value in data.items()
+                if not isinstance(value, (dict, list, tuple))
+            }
+            nested_items = {
+                key: value for key, value in data.items()
+                if isinstance(value, (dict, list, tuple))
+            }
+
+            if scalar_items:
+                rows = []
+                for key, value in scalar_items.items():
+                    if isinstance(value, float):
+                        display_value = f"{value:,.4f}"
+                    elif isinstance(value, (int, bool)):
+                        display_value = str(value)
+                    else:
+                        display_value = str(value)
+                    rows.append({"Metric / Detail": format_label(key), "Value": display_value})
+                st.table(rows)
+
+            for key, value in nested_items.items():
+                with st.expander(format_label(key)):
+                    render_structured_data(value)
+            return
+
+        if isinstance(data, (list, tuple)):
+            if not data:
+                st.caption("No records available.")
+            elif all(isinstance(item, dict) for item in data):
+                import pandas as pd
+                st.dataframe(pd.DataFrame(data), width="stretch", hide_index=True)
+            elif all(not isinstance(item, (dict, list, tuple)) for item in data):
+                st.table([
+                    {"No.": index, "Value": str(value)}
+                    for index, value in enumerate(data, start=1)
+                ])
+            else:
+                for index, item in enumerate(data, start=1):
+                    with st.expander(f"Item {index}"):
+                        render_structured_data(item)
+            return
+
+        st.write(data)
+
+    # Analysis warnings
     for section, error in advanced_result.get("errors", {}).items():
+        st.warning(f"{format_label(section)} was skipped: {error}")
 
-        st.warning(f"{section.replace('_', ' ').title()} was skipped: {error}")
-
-    insights_data = advanced_result.get("insights", {})
-
-    insights = insights_data.get("insights", [])
+    insights_data = advanced_result.get("insights", {}) or {}
+    insights = insights_data.get("insights", []) or []
 
     st.markdown("#### Advanced analytics report")
-
     col1, col2 = st.columns(2)
-
     col1.metric("Insights generated", insights_data.get("total_insights", len(insights)))
-
     col2.metric("High-priority findings", insights_data.get("high_priority_count", 0))
 
     if not insights:
-
         st.info("No notable findings were generated from the available results.")
-
     else:
-
         for index, item in enumerate(insights, start=1):
-
-            priority = item.get("priority", "medium").upper()
-
+            priority = str(item.get("priority", "medium")).strip().lower()
+            priority_styles = {
+                "high": ("#FEE2E2", "#991B1B", "#DC2626", "HIGH PRIORITY"),
+                "medium": ("#FEF3C7", "#92400E", "#D97706", "MEDIUM PRIORITY"),
+                "low": ("#DCFCE7", "#166534", "#16A34A", "LOW PRIORITY"),
+            }
+            bg, fg, border, label = priority_styles.get(
+                priority,
+                ("#E2E8F0", "#334155", "#64748B", f"{priority.upper()} PRIORITY"),
+            )
             title = item.get("title", f"Finding {index}")
 
             with st.container(border=True):
-
                 st.markdown(f"**{title}**")
-
-                st.caption(
-
-                    f"{item.get('category', 'analysis').replace('_', ' ').title()} "
-
-                    f"· {priority} priority"
-
+                st.markdown(
+                    f'<span style="display:inline-block; padding:4px 10px; '
+                    f'border:1px solid {border}; border-radius:999px; '
+                    f'background:{bg}; color:{fg}; font-size:0.78rem; '
+                    f'font-weight:800; letter-spacing:.35px;">'
+                    f'{format_label(item.get("category", "analysis"))} '
+                    f'&nbsp;·&nbsp; {label}</span>',
+                    unsafe_allow_html=True,
                 )
-
-                st.write(item.get("description", ""))
-
+                description = item.get("description")
+                if description:
+                    st.write(description)
                 if item.get("recommendation"):
-
-                    st.markdown(
-
-                        f"**Suggested next step:** {item['recommendation']}"
-
-                    )
-
+                    st.markdown(f"**Suggested next step:** {item['recommendation']}")
                 evidence = item.get("evidence")
-
                 if evidence:
-
                     with st.expander("View supporting evidence"):
-
-                        st.json(evidence)
+                        render_structured_data(evidence)
 
     raw_results = advanced_result.get("results", {})
-
     if raw_results:
-
         with st.expander("View detailed analytical results"):
+            if isinstance(raw_results, dict):
+                for section, result in raw_results.items():
+                    st.markdown(f"##### {format_label(section)}")
+                    render_structured_data(result)
+                    st.divider()
+            else:
+                render_structured_data(raw_results)
 
-            for section, result in raw_results.items():
-
-                st.markdown(f"**{section.replace('_', ' ').title()}**")
-
-                if isinstance(result, dict):
-
-                    st.json(result)
-
-                else:
-
-                    st.write(result)
 
 
 logger = logging.getLogger(__name__)
@@ -1086,7 +944,7 @@ def get_friendly_error(error_code=None):
 
 def render_safe_chart(chart_json, key):
     """Render a generated Plotly chart without crashing the chat."""
-
+    import plotly.io as pio
     if not chart_json:
         return
 

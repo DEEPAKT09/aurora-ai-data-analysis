@@ -1,4 +1,3 @@
-
 import streamlit as st
 
 from ui.dashboard import render_dashboard
@@ -28,298 +27,359 @@ st.set_page_config(
 
 # ============================================================
 # GLOBAL AURORA LIGHT THEME
-# Professional white dashboard with subtle Aurora accents.
+# Professional white dashboard with stronger contrast.
 # ============================================================
 
 AURORA_CSS = """
 <style>
+:root {
+    --aurora-ink: #142033;
+    --aurora-muted: #475569;
+    --aurora-border: #AAB7C8;
+    --aurora-border-strong: #64748B;
+    --aurora-blue: #2563EB;
+    --aurora-cyan: #0891B2;
+    --aurora-purple: #7C3AED;
+    --aurora-green: #15803D;
+    --aurora-amber: #B45309;
+    --aurora-red: #B91C1C;
+}
 
-/* ---------------------------------------------------------
-   GLOBAL APPLICATION
---------------------------------------------------------- */
-
-.stApp {
-    background: #FFFFFF;
-    color: #172033;
+.stApp, [data-testid="stAppViewContainer"] {
+    background: #FFFFFF !important;
+    color: var(--aurora-ink) !important;
 }
 
 .block-container {
     max-width: 1600px;
-    padding-top: 1.8rem;
-    padding-bottom: 2rem;
+    padding-top: 1.5rem;
+    padding-bottom: 2.2rem;
 }
 
-/* ---------------------------------------------------------
-   TYPOGRAPHY
---------------------------------------------------------- */
-
-html,
-body,
-[class*="css"] {
+html, body, [class*="css"] {
     font-family: "Inter", "Segoe UI", sans-serif;
+    color: var(--aurora-ink);
 }
 
-h1, h2, h3, h4, h5 {
-    color: #172033;
-    font-weight: 700;
-    letter-spacing: -0.35px;
+h1, h2, h3, h4, h5, h6 {
+    color: #111827 !important;
+    font-weight: 750 !important;
+    letter-spacing: -0.3px;
 }
 
-p {
-    color: #475569;
+p, label, [data-testid="stMarkdownContainer"] {
+    color: #263449;
 }
 
-[data-testid="stCaptionContainer"] {
-    color: #64748B;
+[data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] p {
+    color: #475569 !important;
 }
-
-/* ---------------------------------------------------------
-   AURORA GRADIENT TEXT
---------------------------------------------------------- */
 
 .aurora-gradient-text {
     background: linear-gradient(
         90deg,
-        #06B6D4,
-        #3B82F6,
-        #8B5CF6
+        #0891B2,
+        #2563EB,
+        #7C3AED
     );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    font-weight: 800;
+    font-weight: 850;
 }
 
-/* ---------------------------------------------------------
+
+/* ============================================================
    SIDEBAR
---------------------------------------------------------- */
+============================================================ */
 
 [data-testid="stSidebar"] {
-    background: #F8FAFC;
-    border-right: 1px solid #E2E8F0;
-}
-
-[data-testid="stSidebar"] > div:first-child {
-    padding-top: 1.5rem;
+    background: #F8FAFC !important;
+    border-right: 1px solid #CBD5E1 !important;
 }
 
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
 [data-testid="stSidebar"] h3 {
-    color: #172033 !important;
+    color: #142033 !important;
 }
-
-[data-testid="stSidebar"] [data-testid="stCaptionContainer"] {
-    color: #64748B;
-}
-
-/* Sidebar navigation radio controls */
 
 [data-testid="stSidebar"] [role="radiogroup"] {
-    gap: 7px;
+    gap: 8px;
 }
 
 [data-testid="stSidebar"] [role="radiogroup"] label {
-    border-radius: 9px;
+    border: 1px solid transparent;
+    border-radius: 10px;
     padding: 9px 12px;
-    transition: all 0.2s ease;
+    color: #1E293B !important;
+    transition: all .18s ease;
 }
 
 [data-testid="stSidebar"] [role="radiogroup"] label:hover {
-    background: #EFF6FF;
+    background: #EFF6FF !important;
+    border-color: #60A5FA !important;
+    box-shadow:
+        0 0 0 2px rgba(37,99,235,.10),
+        0 4px 12px rgba(37,99,235,.12);
 }
 
-/* ---------------------------------------------------------
-   BUTTONS
---------------------------------------------------------- */
+[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {
+    background: #EAF2FF !important;
+    border: 1px solid #3B82F6 !important;
+    color: #1D4ED8 !important;
+    font-weight: 700;
+}
+
+
+/* ============================================================
+   BUTTONS AND INTERACTIVE CONTROLS
+============================================================ */
 
 .stButton > button,
 [data-testid="stDownloadButton"] button {
-    border: 1px solid #CBD5E1;
-    border-radius: 9px;
-    background: #FFFFFF;
-    color: #172033;
-    font-weight: 600;
-    transition: all 0.2s ease;
+    border: 1.5px solid #94A3B8 !important;
+    border-radius: 10px !important;
+    background: #FFFFFF !important;
+    color: #172033 !important;
+    font-weight: 650 !important;
+    transition: all .18s ease !important;
 }
 
 .stButton > button:hover,
 [data-testid="stDownloadButton"] button:hover {
-    border-color: #8B5CF6;
-    color: #6D28D9;
+    border-color: #2563EB !important;
+    color: #1D4ED8 !important;
     box-shadow:
-        0 3px 12px rgba(59, 130, 246, 0.10),
-        0 0 8px rgba(139, 92, 246, 0.08);
+        0 0 0 2px rgba(37,99,235,.13),
+        0 5px 16px rgba(37,99,235,.16) !important;
+    transform: translateY(-1px);
 }
-
-/* Primary buttons */
 
 .stButton > button[kind="primary"] {
     background: linear-gradient(
         100deg,
-        #06B6D4,
-        #6366F1,
-        #8B5CF6
-    );
-    color: #FFFFFF;
-    border: none;
+        #0891B2,
+        #2563EB,
+        #6D5AE6
+    ) !important;
+    color: #FFFFFF !important;
+    border: 1px solid #1D4ED8 !important;
 }
 
 .stButton > button[kind="primary"]:hover {
-    color: #FFFFFF;
-    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);
+    color: #FFFFFF !important;
+    box-shadow:
+        0 0 0 3px rgba(37,99,235,.16),
+        0 6px 18px rgba(37,99,235,.28) !important;
 }
 
-/* ---------------------------------------------------------
+
+/* ============================================================
    METRIC CARDS
---------------------------------------------------------- */
+============================================================ */
 
 [data-testid="stMetric"] {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 13px;
-    padding: 16px;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.035);
-    transition: all 0.2s ease;
+    background: #FFFFFF !important;
+    border: 1.5px solid #94A3B8 !important;
+    border-radius: 13px !important;
+    padding: 15px 17px !important;
+    box-shadow: 0 2px 7px rgba(15,23,42,.07) !important;
+    transition: all .18s ease !important;
 }
 
 [data-testid="stMetric"]:hover {
-    border-color: #A5B4FC;
+    border-color: #3B82F6 !important;
     box-shadow:
-        0 4px 14px rgba(59, 130, 246, 0.08);
-    transform: translateY(-1px);
+        0 0 0 2px rgba(59,130,246,.12),
+        0 7px 18px rgba(15,23,42,.11) !important;
+    transform: translateY(-2px);
 }
 
-[data-testid="stMetricLabel"] {
-    color: #64748B !important;
+[data-testid="stMetricLabel"],
+[data-testid="stMetricLabel"] p {
+    color: #334155 !important;
+    font-weight: 650 !important;
 }
 
 [data-testid="stMetricValue"] {
-    color: #172033 !important;
-    font-weight: 750;
+    color: #111827 !important;
+    font-weight: 800 !important;
 }
 
-/* ---------------------------------------------------------
-   CONTAINERS AND EXPANDERS
---------------------------------------------------------- */
+
+/* ============================================================
+   CARDS, EXPANDERS, TABLES AND CHARTS
+============================================================ */
 
 [data-testid="stVerticalBlockBorderWrapper"] {
-    border-color: #E2E8F0;
-    border-radius: 12px;
+    border: 1.5px solid #94A3B8 !important;
+    border-radius: 13px !important;
+    box-shadow: 0 2px 8px rgba(15,23,42,.055) !important;
+    transition:
+        border-color .18s ease,
+        box-shadow .18s ease,
+        transform .18s ease;
+}
+
+[data-testid="stVerticalBlockBorderWrapper"]:hover {
+    border-color: #60A5FA !important;
+    box-shadow:
+        0 0 0 2px rgba(59,130,246,.09),
+        0 7px 18px rgba(15,23,42,.09) !important;
 }
 
 [data-testid="stExpander"] {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 11px;
+    background: #FFFFFF !important;
+    border: 1.5px solid #94A3B8 !important;
+    border-radius: 11px !important;
+    box-shadow: 0 2px 7px rgba(15,23,42,.045) !important;
+    transition: all .18s ease;
 }
 
-/* ---------------------------------------------------------
-   INPUTS AND SELECTBOXES
---------------------------------------------------------- */
+[data-testid="stExpander"]:hover {
+    border-color: #3B82F6 !important;
+    box-shadow:
+        0 0 0 2px rgba(59,130,246,.10),
+        0 5px 14px rgba(15,23,42,.08) !important;
+}
+
+[data-testid="stDataFrame"],
+[data-testid="stTable"],
+[data-testid="stPlotlyChart"] {
+    border: 1.5px solid #A3B1C2 !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    box-shadow: 0 2px 8px rgba(15,23,42,.06) !important;
+}
+
+
+/* ============================================================
+   INPUTS AND SELECT BOXES
+============================================================ */
 
 [data-testid="stTextInput"] input,
 [data-testid="stNumberInput"] input,
 [data-testid="stDateInput"] input,
-[data-testid="stTextArea"] textarea {
-    background: #FFFFFF;
-    color: #172033;
-    border: 1px solid #CBD5E1;
-    border-radius: 9px;
+[data-testid="stTextArea"] textarea,
+[data-testid="stChatInput"] textarea {
+    background: #FFFFFF !important;
+    color: #172033 !important;
+    border-radius: 9px !important;
 }
 
 [data-baseweb="select"] > div {
-    background: #FFFFFF;
-    border-color: #CBD5E1;
-    border-radius: 9px;
+    background: #FFFFFF !important;
+    border-color: #94A3B8 !important;
+    border-radius: 9px !important;
 }
 
-/* Focus state */
+input,
+textarea {
+    color: #172033 !important;
+}
 
 [data-testid="stTextInput"] input:focus,
+[data-testid="stNumberInput"] input:focus,
 [data-testid="stTextArea"] textarea:focus {
-    border-color: #8B5CF6;
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.10);
+    border-color: #2563EB !important;
+    box-shadow: 0 0 0 2px rgba(37,99,235,.15) !important;
 }
 
-/* ---------------------------------------------------------
+
+/* ============================================================
    FILE UPLOADER
---------------------------------------------------------- */
+============================================================ */
 
-[data-testid="stFileUploader"] {
-    background: #FFFFFF;
-    border: 1px dashed #94A3B8;
-    border-radius: 11px;
-    padding: 8px;
+[data-testid="stFileUploader"] section {
+    background: #FFFFFF !important;
+    border: 1.5px dashed #64748B !important;
+    border-radius: 11px !important;
+    transition: all .18s ease;
 }
 
-[data-testid="stFileUploader"]:hover {
-    border-color: #06B6D4;
+[data-testid="stFileUploader"] section:hover {
+    border-color: #0891B2 !important;
+    box-shadow:
+        0 0 0 2px rgba(8,145,178,.11),
+        0 5px 14px rgba(8,145,178,.10) !important;
 }
 
-/* ---------------------------------------------------------
+
+/* ============================================================
    CHAT INTERFACE
---------------------------------------------------------- */
+============================================================ */
 
 [data-testid="stChatMessage"] {
-    background: #F8FAFC;
-    border: 1px solid #E2E8F0;
-    border-radius: 12px;
-    padding: 12px;
+    background: #F8FAFC !important;
+    border: 1.5px solid #A3B1C2 !important;
+    border-radius: 12px !important;
+    padding: 12px !important;
     margin-bottom: 10px;
+    transition: all .18s ease;
+}
+
+[data-testid="stChatMessage"]:hover {
+    border-color: #60A5FA !important;
+    box-shadow:
+        0 0 0 2px rgba(59,130,246,.09),
+        0 5px 14px rgba(15,23,42,.08) !important;
 }
 
 [data-testid="stChatInput"] {
-    border: 1px solid #CBD5E1;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.035);
+    border: 1.8px solid #64748B !important;
+    border-radius: 14px !important;
+    background: #FFFFFF !important;
+    box-shadow: 0 2px 9px rgba(15,23,42,.08) !important;
+    transition: all .18s ease;
 }
 
+[data-testid="stChatInput"]:hover,
 [data-testid="stChatInput"]:focus-within {
-    border-color: #8B5CF6;
-    box-shadow: 0 0 10px rgba(139, 92, 246, 0.12);
+    border-color: #2563EB !important;
+    box-shadow:
+        0 0 0 3px rgba(37,99,235,.14),
+        0 5px 16px rgba(37,99,235,.12) !important;
 }
 
-/* ---------------------------------------------------------
-   TABLES
---------------------------------------------------------- */
 
-[data-testid="stDataFrame"] {
-    border: 1px solid #E2E8F0;
-    border-radius: 10px;
-    overflow: hidden;
-}
-
-/* ---------------------------------------------------------
-   TABS
---------------------------------------------------------- */
+/* ============================================================
+   TABS AND DIVIDERS
+============================================================ */
 
 .stTabs [data-baseweb="tab-list"] {
     gap: 8px;
-    border-bottom: 1px solid #E2E8F0;
+    border-bottom: 1px solid #CBD5E1;
 }
 
 .stTabs [data-baseweb="tab"] {
-    color: #64748B;
-    font-weight: 600;
+    color: #475569 !important;
+    font-weight: 650;
 }
 
 .stTabs [aria-selected="true"] {
-    color: #6D28D9 !important;
-    border-bottom-color: #8B5CF6 !important;
+    color: #1D4ED8 !important;
+    border-bottom-color: #2563EB !important;
 }
-
-/* ---------------------------------------------------------
-   DIVIDERS
---------------------------------------------------------- */
 
 hr {
-    border-color: #E2E8F0;
+    border-color: #CBD5E1 !important;
 }
 
-/* ---------------------------------------------------------
-   RESPONSIVE SPACING
---------------------------------------------------------- */
+
+/* ============================================================
+   FOOTER AND RESPONSIVE SPACING
+============================================================ */
+
+.aurora-footer {
+    text-align: center;
+    color: #64748B;
+    font-size: 12px;
+    padding: 15px 0 5px;
+    border-top: 1px solid #CBD5E1;
+    margin-top: 30px;
+}
 
 @media (max-width: 768px) {
     .block-container {
@@ -328,156 +388,14 @@ hr {
     }
 }
 
-/* ---------------------------------------------------------
-   FOOTER
---------------------------------------------------------- */
-
-.aurora-footer {
-    text-align: center;
-    color: #94A3B8;
-    font-size: 12px;
-    padding: 15px 0 5px 0;
-    border-top: 1px solid #E2E8F0;
-    margin-top: 30px;
-}
-
-/* =====================================================
-   AURORA MAIN DASHBOARD – BORDER AND SHADOW POLISH
-   Scoped to main content. Sidebar remains untouched.
-   ===================================================== */
-
-/* Main dashboard bordered containers */
-section.main [data-testid="stVerticalBlockBorderWrapper"] {
-    border: 2px solid #334155 !important;
-    border-radius: 12px !important;
-    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.10) !important;
-}
-
-/* KPI cards */
-section.main [data-testid="stMetric"] {
-    border: 2px solid #334155 !important;
-    border-radius: 12px !important;
-    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.10) !important;
-}
-
-/* Expanders */
-section.main [data-testid="stExpander"] {
-    border: 2px solid #334155 !important;
-    border-radius: 12px !important;
-    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.09) !important;
-}
-
-/* Tables */
-section.main [data-testid="stDataFrame"],
-section.main [data-testid="stTable"] {
-    border: 2px solid #334155 !important;
-    border-radius: 10px !important;
-    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.10) !important;
-    overflow: hidden !important;
-}
-
-/* Charts */
-section.main [data-testid="stPlotlyChart"] {
-    border: 2px solid #334155 !important;
-    border-radius: 12px !important;
-    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.10) !important;
-    padding: 5px !important;
-}
-
-/* Chat message boxes */
-section.main [data-testid="stChatMessage"] {
-    border: 2px solid #334155 !important;
-    border-radius: 12px !important;
-    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.09) !important;
-    padding: 12px !important;
-}
-
-/* =====================================================
-   CHAT INPUT – COMPLETE OUTLINE AND AURORA GLOW
-   ===================================================== */
-
-/* Outer chat input */
-section.main [data-testid="stChatInput"] {
-    border: 2px solid #2563EB !important;
-    border-radius: 16px !important;
-    background: #FFFFFF !important;
-    box-shadow:
-        0 0 0 2px rgba(6, 182, 212, 0.16),
-        0 0 12px rgba(59, 130, 246, 0.16),
-        0 4px 12px rgba(15, 23, 42, 0.10) !important;
-    box-sizing: border-box !important;
-    overflow: visible !important;
-}
-
-/* Actual textarea surface */
-section.main [data-testid="stChatInput"] [data-baseweb="textarea"] {
-    border: 2px solid #334155 !important;
-    border-radius: 13px !important;
-    background: #FFFFFF !important;
-    box-shadow: none !important;
-    box-sizing: border-box !important;
-}
-
-/* Remove conflicting inner focus outlines */
-section.main [data-testid="stChatInput"] textarea {
-    outline: none !important;
-    box-shadow: none !important;
-}
-
-/* Stronger Aurora glow while typing */
-section.main [data-testid="stChatInput"]:focus-within {
-    border-color: #0891B2 !important;
-    box-shadow:
-        0 0 0 2px rgba(6, 182, 212, 0.24),
-        0 0 16px rgba(59, 130, 246, 0.28),
-        0 5px 15px rgba(15, 23, 42, 0.12) !important;
-}
-
-/* File uploader – main content only */
-section.main [data-testid="stFileUploader"] section {
-    border: 2px dashed #334155 !important;
-    border-radius: 12px !important;
-    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08) !important;
-}
-/* =====================================================
-   AURORA – PERMANENT CHAT INPUT OUTLINE
-   Keeps all four borders visible without hovering
-   ===================================================== */
-
-section.main [data-testid="stChatInput"] {
-    position: relative !important;
-    border: 2px solid #2563EB !important;
-    border-radius: 16px !important;
-    outline: none !important;
-    box-shadow:
-        0 0 0 2px rgba(6, 182, 212, 0.16),
-        0 0 12px rgba(59, 130, 246, 0.16),
-        0 4px 12px rgba(15, 23, 42, 0.10) !important;
-}
-
-/* Draw a permanent four-sided outline above the input */
-section.main [data-testid="stChatInput"]::after {
-    content: "" !important;
-    position: absolute !important;
-    inset: 0 !important;
-    border: 2px solid #2563EB !important;
-    border-radius: 16px !important;
-    pointer-events: none !important;
-    z-index: 10 !important;
-    box-sizing: border-box !important;
-}
-
-/* Maintain the Aurora glow on focus */
-section.main [data-testid="stChatInput"]:focus-within::after {
-    border-color: #0891B2 !important;
-    box-shadow: 0 0 10px rgba(6, 182, 212, 0.25) !important;
-}
-
 </style>
 """
 
 
-# Apply the global theme.
+# ============================================================
+# APPLY THE GLOBAL THEME
+# ============================================================
+
 st.markdown(
     AURORA_CSS,
     unsafe_allow_html=True,
