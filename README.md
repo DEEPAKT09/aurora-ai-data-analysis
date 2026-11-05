@@ -2,8 +2,6 @@
 
 An AI-powered, multi-agent data analysis application built with **Streamlit**, **LangGraph**, **Google Gemini**, and Python's data-science ecosystem. AURORA helps users explore uploaded datasets, ask questions in natural language, generate visualizations, run statistical and advanced analytics, and build predictive models through a single web interface.
 
-> **Project status:** Active development. The application is designed to run locally and can be deployed to Render from the GitHub `main` branch.
-
 ## Features
 
 ### Dataset upload and profiling
